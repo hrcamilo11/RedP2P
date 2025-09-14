@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  central-server:
+    build: ./src/central-server
+    container_name: p2p-central-server
+    networks:
+      - p2p-network
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+    environment:
+      - DATABASE_URL=sqlite:///./data/central_server.db
+    volumes:
+      - ./data/central-server:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  peer-node-1:
+    build: ./src/peer-node
+    container_name: p2p-peer-1
+    networks:
+      - p2p-network
+    ports:
+      - "8001:8001"
+      - "9001:9001"
+    volumes:
+      - ./data/shared-files/peer1:/app/shared_files
+      - ./config/peer1.json:/app/config.json
+    environment:
+      - PEER_ID=peer1
+      - CONFIG_FILE=/app/config.json
+    depends_on:
+      - central-server
+    restart: unless-stopped
+
+  peer-node-2:
+    build: ./src/peer-node
+    container_name: p2p-peer-2
+    networks:
+      - p2p-network
+    ports:
+      - "8002:8002"
+      - "9002:9002"
+    volumes:
+      - ./data/shared-files/peer2:/app/shared_files
+      - ./config/peer2.json:/app/config.json
+    environment:
+      - PEER_ID=peer2
+      - CONFIG_FILE=/app/config.json
+    depends_on:
+      - central-server
+    restart: unless-stopped
+
+  peer-node-3:
+    build: ./src/peer-node
+    container_name: p2p-peer-3
+    networks:
+      - p2p-network
+    ports:
+      - "8003:8003"
+      - "9003:9003"
+    volumes:
+      - ./data/shared-files/peer3:/app/shared_files
+      - ./config/peer3.json:/app/config.json
+    environment:
+      - PEER_ID=peer3
+      - CONFIG_FILE=/app/config.json
+    depends_on:
+      - central-server
+    restart: unless-stopped
+
+networks:
+  p2p-network:
+    external: true
