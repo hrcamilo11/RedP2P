@@ -1,0 +1,30 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "grpc_port": 9000
+  },
+  "database": {
+    "url": "sqlite:///./central_server.db",
+    "echo": false
+  },
+  "peers": {
+    "cleanup_timeout_minutes": 30,
+    "health_check_interval": 60,
+    "max_offline_peers": 100
+  },
+  "indexing": {
+    "auto_index_interval": 300,
+    "batch_size": 1000,
+    "max_concurrent_indexing": 5
+  },
+  "transfers": {
+    "max_concurrent_transfers": 10,
+    "transfer_timeout": 3600,
+    "chunk_size": 8192
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  }
+}
