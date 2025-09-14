@@ -1,0 +1,26 @@
+{
+  "peer_id": "peer1",
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8001,
+    "grpc_port": 9001
+  },
+  "shared_directory": "/app/shared_files",
+  "network": {
+    "primary_friend": {
+      "peer_id": "peer2",
+      "host": "peer2",
+      "port": 8002,
+      "grpc_port": 9002
+    },
+    "backup_friend": {
+      "peer_id": "peer3",
+      "host": "peer3",
+      "port": 8003,
+      "grpc_port": 9003
+    }
+  },
+  "max_concurrent_connections": 10,
+  "file_chunk_size": 1024,
+  "discovery_timeout": 30
+}
