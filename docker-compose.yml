@@ -76,4 +76,4 @@ services:
 
 networks:
   p2p-network:
-    external: true
+    driver: bridge

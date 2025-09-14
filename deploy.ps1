@@ -157,30 +157,10 @@ if (-not $SkipCleanup) {
     Write-ColorOutput "Saltando limpieza (--SkipCleanup especificado)" $Colors.Warning "⚠️ "
 }
 
-# Crear red Docker
+# Configurar red Docker (manejada automáticamente por Docker Compose)
 Write-Step 3 8 "Configurando red Docker..."
 
-$networkExists = docker network ls --format "{{.Name}}" | Where-Object { $_ -eq $NetworkName }
-if ($networkExists) {
-    Write-ColorOutput "Red '$NetworkName' ya existe" $Colors.Info "ℹ️ "
-    
-    # Verificar si la red es externa o interna
-    $networkInfo = docker network inspect $NetworkName --format "{{.Labels}}"
-    if ($networkInfo -match "com.docker.compose") {
-        Write-ColorOutput "Red '$NetworkName' es una red de Docker Compose" $Colors.Info "ℹ️ "
-    } else {
-        Write-ColorOutput "Red '$NetworkName' es una red externa" $Colors.Info "ℹ️ "
-    }
-} else {
-    Write-ColorOutput "Creando red '$NetworkName'..." $Colors.Info "🌐 "
-    docker network create $NetworkName
-    if ($LASTEXITCODE -eq 0) {
-        Write-ColorOutput "Red '$NetworkName' creada" $Colors.Success "✅ "
-    } else {
-        Write-ColorOutput "Error creando red '$NetworkName'" $Colors.Error "❌ "
-        exit 1
-    }
-}
+Write-ColorOutput "La red '$NetworkName' será creada automáticamente por Docker Compose" $Colors.Info "ℹ️ "
 
 # Crear directorios necesarios
 Write-Step 4 8 "Creando estructura de directorios..."
