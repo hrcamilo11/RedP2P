@@ -37,6 +37,7 @@ class File(Base):
     size = Column(Integer, nullable=False)
     peer_id = Column(String, ForeignKey("peers.peer_id"), nullable=False)
     is_available = Column(Boolean, default=True)
+    source = Column(String, default='indexed')  # 'indexed' para archivos indexados, 'upload' para archivos subidos
     last_modified = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

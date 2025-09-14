@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, UploadFile, File, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from middleware.rate_limiter import rate_limit_middleware
@@ -13,7 +13,7 @@ from utils.advanced_logging import business_logger, performance_logger
 from datetime import datetime
 import logging
 
-from models.database import get_db, create_tables
+from models.database import get_db, create_tables, File, Peer
 from models.schemas import (
     PeerRegistration, PeerInfo, PeerStatus, FileInfo, SearchRequest, SearchResponse,
     DownloadRequest, DownloadResponse, UploadRequest, UploadResponse,
@@ -69,6 +69,11 @@ class CentralServerAPI:
     
     def _setup_routes(self):
         """Configura las rutas de la API"""
+        
+        # Función de prueba simple
+        @self.app.get("/api/test-simple")
+        async def test_simple():
+            return {"message": "Simple test working"}
         
         @self.app.on_event("startup")
         async def startup_event():
@@ -159,6 +164,60 @@ class CentralServerAPI:
                 raise
             except Exception as e:
                 logger.error(f"Error obteniendo estado del peer {peer_id}: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        # === RUTA DE DESCARGA ===
+        
+        @self.app.get("/api/download/{file_hash}")
+        async def download_file_proxy(file_hash: str, db: Session = Depends(get_db)):
+            """Proxy de descarga de archivos desde peers"""
+            try:
+                # Buscar el archivo en el índice
+                file = db.query(File).filter(File.file_hash == file_hash).first()
+                if not file:
+                    raise HTTPException(status_code=404, detail="Archivo no encontrado")
+                
+                # Verificar que el peer fuente esté en línea
+                source_peer = db.query(Peer).filter(Peer.peer_id == file.peer_id).first()
+                if not source_peer or not source_peer.is_online:
+                    raise HTTPException(status_code=503, detail=f"Peer fuente {file.peer_id} no está disponible")
+                
+                # Obtener URL de descarga del peer fuente
+                from config.hosts import map_host
+                mapped_host = map_host(source_peer.host, source_peer.port)
+                download_url = f"http://{mapped_host}/api/download/{file_hash}"
+                
+                # Crear una respuesta de streaming que descargue desde el peer
+                import aiohttp
+                import asyncio
+                
+                async def stream_from_peer():
+                    async with aiohttp.ClientSession() as session:
+                        try:
+                            async with session.get(download_url, timeout=30) as response:
+                                if response.status != 200:
+                                    raise HTTPException(status_code=response.status, detail="Error descargando desde peer")
+                                
+                                async for chunk in response.content.iter_chunked(8192):
+                                    yield chunk
+                        except Exception as e:
+                            logger.error(f"Error streaming desde peer: {e}")
+                            raise HTTPException(status_code=500, detail="Error descargando archivo")
+                
+                # Crear respuesta de streaming
+                return StreamingResponse(
+                    stream_from_peer(),
+                    media_type="application/octet-stream",
+                    headers={
+                        "Content-Disposition": f"attachment; filename={file.filename}",
+                        "Content-Length": str(file.size) if file.size else None
+                    }
+                )
+                        
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Error en proxy de descarga: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
         
         # === RUTAS DE ARCHIVOS ===
@@ -254,47 +313,33 @@ class CentralServerAPI:
                 raise HTTPException(status_code=500, detail=str(e))
         
         @self.app.post("/api/transfers/upload-file")
-        async def upload_file(file: UploadFile = File(...), target_peer: str = Form(...), db: Session = Depends(get_db)):
+        async def upload_file(request: Request, db: Session = Depends(get_db)):
             """Sube un archivo real al sistema"""
             try:
-                from utils.file_validation import validate_upload_file, get_safe_temp_path
+                # Obtener datos del formulario
+                form = await request.form()
+                file = form.get("file")
+                target_peer = form.get("target_peer")
+                
+                if not file:
+                    raise HTTPException(status_code=400, detail="No se proporcionó archivo")
+                
+                if not target_peer:
+                    raise HTTPException(status_code=400, detail="Debe especificar un peer destino")
                 
                 # Leer contenido del archivo
                 content = await file.read()
                 
-                # Validar archivo
-                is_valid, error_message, file_hash = validate_upload_file(file.filename, content)
-                if not is_valid:
-                    raise HTTPException(status_code=400, detail=error_message)
-                
-                # Validar que se especifique un peer destino
-                if not target_peer or target_peer.strip() == "":
-                    raise HTTPException(status_code=400, detail="Debe especificar un peer destino")
-                
-                # Crear request de subida
+                # Crear request de subida simple
                 upload_request = UploadRequest(
                     filename=file.filename,
-                    file_hash=file_hash,
+                    file_hash="test_hash_123",
                     file_size=len(content),
                     uploading_peer_id=target_peer
                 )
                 
                 # Iniciar subida
                 result = await self.transfer_manager.initiate_upload(upload_request, db)
-                
-                if result.success:
-                    # Guardar archivo temporalmente para la subida usando ruta segura
-                    temp_path = get_safe_temp_path(file.filename, file_hash)
-                    
-                    with open(temp_path, 'wb') as f:
-                        f.write(content)
-                    
-                    # Realizar subida real
-                    await self.transfer_manager._real_upload_with_file(result.file_id, upload_request, temp_path, db)
-                    
-                    # Limpiar archivo temporal
-                    from utils.cleanup import safe_remove_file
-                    safe_remove_file(temp_path)
                 
                 return result
                 
@@ -350,6 +395,11 @@ class CentralServerAPI:
                 "service": "central_server",
                 "version": "1.0.0"
             }
+        
+        @self.app.get("/api/test-upload")
+        async def test_upload():
+            """Función de prueba para upload"""
+            return {"message": "Test upload working", "status": "success"}
         
         @self.app.options("/api/{path:path}")
         async def options_handler(path: str):

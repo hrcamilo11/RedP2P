@@ -503,33 +503,16 @@ class RedP2PApp {
         try {
             const { fileHash, filename } = this.pendingDownload;
             
-            // Iniciar descarga
-            const response = await fetch(`${this.apiBaseUrl}/transfers/download`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    file_hash: fileHash,
-                    requesting_peer_id: 'central-server'
-                })
-            });
+            // Usar el proxy centralizado para la descarga
+            const downloadUrl = `${this.apiBaseUrl}/download/${fileHash}`;
             
-            if (!response.ok) throw new Error('Error iniciando descarga');
+            // Crear enlace de descarga
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = filename;
+            link.click();
             
-            const result = await response.json();
-            
-            if (result.success) {
-                // Crear enlace de descarga
-                const link = document.createElement('a');
-                link.href = result.download_url;
-                link.download = filename;
-                link.click();
-                
-                this.showToast('Descarga iniciada', 'success');
-            } else {
-                throw new Error(result.error_message || 'Error en la descarga');
-            }
+            this.showToast('Descarga iniciada', 'success');
             
             // Cerrar modal
             bootstrap.Modal.getInstance(document.getElementById('downloadModal')).hide();
@@ -540,6 +523,7 @@ class RedP2PApp {
             this.showToast('Error en la descarga', 'error');
         }
     }
+    
 
     async getFileInfo(fileHash) {
         try {

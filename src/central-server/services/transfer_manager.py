@@ -547,6 +547,7 @@ class TransferManager:
                     size=upload_request.file_size,
                     peer_id=peer_id,
                     is_available=True,
+                    source='upload',  # Marcar como archivo subido
                     last_modified=datetime.utcnow()
                 )
                 db.add(new_file)

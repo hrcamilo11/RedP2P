@@ -51,27 +51,67 @@ class CentralFileIndexer:
                         data = await response.json()
                         files_data = data.get('files', [])
                         
-                        # Limpiar archivos existentes del peer
-                        db.query(File).filter(File.peer_id == peer_id).delete()
+                        # NO eliminar archivos subidos - solo marcar como no disponibles los que no están en el directorio local
+                        # Los archivos subidos se mantienen en la BD para preservar la funcionalidad
+                        existing_files = db.query(File).filter(File.peer_id == peer_id).all()
+                        local_file_hashes = set()
                         
-                        # Indexar nuevos archivos
+                        # Indexar nuevos archivos y actualizar existentes
                         indexed_count = 0
                         for file_data in files_data:
                             try:
-                                file_record = File(
-                                    filename=file_data['filename'],
-                                    file_hash=file_data['hash'],
-                                    size=file_data['size'],
-                                    peer_id=peer_id,
-                                    is_available=file_data.get('is_available', True),
-                                    last_modified=datetime.fromisoformat(file_data['last_modified'].replace('Z', '+00:00')),
-                                    created_at=datetime.utcnow()
-                                )
-                                db.add(file_record)
+                                file_hash = file_data['hash']
+                                local_file_hashes.add(file_hash)
+                                
+                                # Buscar si el archivo ya existe
+                                existing_file = db.query(File).filter(
+                                    File.file_hash == file_hash,
+                                    File.peer_id == peer_id
+                                ).first()
+                                
+                                if existing_file:
+                                    # Actualizar archivo existente - solo si no es un archivo subido
+                                    if existing_file.source != 'upload':
+                                        existing_file.filename = file_data['filename']
+                                        existing_file.size = file_data['size']
+                                        existing_file.is_available = file_data.get('is_available', True)
+                                        existing_file.last_modified = datetime.fromisoformat(file_data['last_modified'].replace('Z', '+00:00'))
+                                        existing_file.updated_at = datetime.utcnow()
+                                        logger.debug(f"Archivo {file_data['filename']} actualizado en peer {peer_id}")
+                                    else:
+                                        logger.debug(f"Archivo {file_data['filename']} es un archivo subido, no se actualiza")
+                                else:
+                                    # Crear nuevo archivo indexado
+                                    file_record = File(
+                                        filename=file_data['filename'],
+                                        file_hash=file_data['hash'],
+                                        size=file_data['size'],
+                                        peer_id=peer_id,
+                                        is_available=file_data.get('is_available', True),
+                                        source='indexed',  # Marcar como archivo indexado
+                                        last_modified=datetime.fromisoformat(file_data['last_modified'].replace('Z', '+00:00')),
+                                        created_at=datetime.utcnow()
+                                    )
+                                    db.add(file_record)
+                                    logger.debug(f"Archivo {file_data['filename']} indexado en peer {peer_id}")
+                                
                                 indexed_count += 1
                             except Exception as e:
                                 logger.error(f"Error indexando archivo {file_data.get('filename', 'unknown')}: {e}")
                                 continue
+                        
+                        # Marcar como no disponibles los archivos que no están en el directorio local
+                        # pero NO eliminar archivos subidos (que tienen source='upload')
+                        for existing_file in existing_files:
+                            if existing_file.file_hash not in local_file_hashes:
+                                # Solo marcar como no disponible si no es un archivo subido
+                                # Los archivos subidos se mantienen disponibles
+                                if existing_file.source != 'upload':
+                                    existing_file.is_available = False
+                                    existing_file.updated_at = datetime.utcnow()
+                                    logger.debug(f"Archivo {existing_file.filename} marcado como no disponible (no en directorio local)")
+                                else:
+                                    logger.debug(f"Archivo {existing_file.filename} es un archivo subido, se mantiene disponible")
                         
                         db.commit()
                         logger.info(f"Indexados {indexed_count} archivos del peer {peer_id}")

@@ -63,7 +63,7 @@ class PeerNode:
             
             # Inicializar cliente central
             # Usar el nombre del contenedor Docker para conectarse al servidor central
-            central_server_url = "http://central-server:8000"
+            central_server_url = "http://p2p-central-server:8000"
             self.central_client = CentralClient(
                 central_server_url,
                 self.config.peer_id,
