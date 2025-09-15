@@ -557,13 +557,21 @@ class RedP2PApp {
         try {
             this.showToast('Iniciando subida de archivos...', 'info');
             
-            // Subir archivos reales
+            // Obtener información del peer destino
+            const peerInfo = await this.getPeerInfo(targetPeer);
+            if (!peerInfo) {
+                throw new Error(`No se pudo obtener información del peer ${targetPeer}`);
+            }
+            
+            // Subir archivos directamente al peer
             for (let file of fileInput.files) {
                 const formData = new FormData();
                 formData.append('file', file);
-                formData.append('target_peer', targetPeer);
                 
-                const response = await fetch(`${this.apiBaseUrl}/transfers/upload-file`, {
+                // Construir URL del peer
+                const peerUrl = `http://localhost:${peerInfo.port}`;
+                
+                const response = await fetch(`${peerUrl}/api/upload`, {
                     method: 'POST',
                     body: formData
                 });
@@ -575,6 +583,9 @@ class RedP2PApp {
                 
                 const result = await response.json();
                 console.log(`Archivo ${file.name} subido:`, result);
+                
+                // Indexar el archivo en el servidor central
+                await this.indexPeerFiles(targetPeer);
             }
             
             this.showToast('Archivos subidos correctamente', 'success');
@@ -586,6 +597,30 @@ class RedP2PApp {
         } catch (error) {
             console.error('Error subiendo archivos:', error);
             this.showToast(`Error subiendo archivos: ${error.message}`, 'error');
+        }
+    }
+    
+    async getPeerInfo(peerId) {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/peers`);
+            const peers = await response.json();
+            return peers.find(peer => peer.peer_id === peerId);
+        } catch (error) {
+            console.error('Error obteniendo información del peer:', error);
+            return null;
+        }
+    }
+    
+    async indexPeerFiles(peerId) {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/files/index/${peerId}`, {
+                method: 'POST'
+            });
+            if (!response.ok) {
+                throw new Error('Error indexando archivos del peer');
+            }
+        } catch (error) {
+            console.error('Error indexando archivos del peer:', error);
         }
     }
 

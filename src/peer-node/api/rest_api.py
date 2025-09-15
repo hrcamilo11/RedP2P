@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, UploadFile, File
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 import asyncio
 import os
@@ -23,7 +24,18 @@ class RESTAPI:
         self.pclient = pclient
         self.central_client = central_client
         self.app = FastAPI(title=f"P2P Peer {peer_id}", version="1.0.0")
+        self._setup_cors()
         self._setup_routes()
+    
+    def _setup_cors(self):
+        """Configura CORS para permitir peticiones desde el servidor central"""
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],  # Permitir todos los orígenes para desarrollo
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
     
     def _setup_routes(self):
         """Configura las rutas de la API"""
@@ -127,6 +139,11 @@ class RESTAPI:
                 file_path = os.path.join(self.file_transfer.shared_directory, file.filename)
                 with open(file_path, 'wb') as f:
                     f.write(content)
+                
+                # Indexar el archivo automáticamente
+                from models.file_info import FileInfo
+                file_info = FileInfo.from_file(file_path, self.peer_id)
+                await self.file_indexer.add_file(file_info)
                 
                 return {
                     "success": True,

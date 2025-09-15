@@ -316,6 +316,8 @@ class CentralServerAPI:
         async def upload_file(request: Request, db: Session = Depends(get_db)):
             """Sube un archivo real al sistema"""
             try:
+                from utils.file_validation import validate_upload_file, get_safe_temp_path
+                
                 # Obtener datos del formulario
                 form = await request.form()
                 file = form.get("file")
@@ -330,16 +332,35 @@ class CentralServerAPI:
                 # Leer contenido del archivo
                 content = await file.read()
                 
-                # Crear request de subida simple
+                # Validar archivo
+                is_valid, error_message, file_hash = validate_upload_file(file.filename, content)
+                if not is_valid:
+                    raise HTTPException(status_code=400, detail=error_message)
+                
+                # Crear request de subida con hash real
                 upload_request = UploadRequest(
                     filename=file.filename,
-                    file_hash="test_hash_123",
+                    file_hash=file_hash,
                     file_size=len(content),
                     uploading_peer_id=target_peer
                 )
                 
                 # Iniciar subida
                 result = await self.transfer_manager.initiate_upload(upload_request, db)
+                
+                if result.success:
+                    # Guardar archivo temporalmente para la subida usando ruta segura
+                    temp_path = get_safe_temp_path(file.filename, file_hash)
+                    
+                    with open(temp_path, 'wb') as f:
+                        f.write(content)
+                    
+                    # Realizar subida real
+                    await self.transfer_manager._real_upload_with_file(result.file_id, upload_request, temp_path, db)
+                    
+                    # Limpiar archivo temporal
+                    from utils.cleanup import safe_remove_file
+                    safe_remove_file(temp_path)
                 
                 return result
                 
