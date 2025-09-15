@@ -339,10 +339,54 @@ class RedP2PApp {
                         <button class="btn btn-sm btn-outline-info" onclick="app.getFileInfo('${file.file_hash}')">
                             <i class="bi bi-info-circle"></i> Info
                         </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="app.confirmDeleteFile('${file.file_hash}', '${file.peer_id}', '${file.filename}')">
+                            <i class="bi bi-trash"></i> Borrar
+                        </button>
                     </div>
                 </div>
             </div>
         `).join('');
+    }
+
+    async confirmDeleteFile(fileHash, peerId, filename) {
+        try {
+            const confirmMsg = `¿Seguro que deseas borrar "${filename}" del peer ${peerId}?`;
+            if (!window.confirm(confirmMsg)) return;
+            await this.deleteFile(fileHash, peerId, filename);
+        } catch (error) {
+            console.error('Error confirmando borrado:', error);
+            this.showToast('Error confirmando borrado', 'error');
+        }
+    }
+
+    async deleteFile(fileHash, peerId, filename) {
+        try {
+            this.showToast('Borrando archivo...', 'info');
+
+            // Obtener info del peer para conocer el puerto
+            const peerInfo = await this.getPeerInfo(peerId);
+            if (!peerInfo) throw new Error(`No se encontró información del peer ${peerId}`);
+
+            const peerUrl = `http://localhost:${peerInfo.port}`;
+
+            // Llamar al endpoint DELETE del peer
+            const resp = await fetch(`${peerUrl}/api/files/${fileHash}`, { method: 'DELETE' });
+            if (!resp.ok) {
+                const txt = await resp.text();
+                throw new Error(`Error del peer: ${txt}`);
+            }
+
+            // Reindexar en el central para refrescar listado
+            await this.indexPeerFiles(peerId);
+
+            // Refrescar UI de archivos
+            await this.loadFiles();
+
+            this.showToast(`Archivo borrado: ${filename}`, 'success');
+        } catch (error) {
+            console.error('Error borrando archivo:', error);
+            this.showToast(`Error borrando archivo: ${error.message}`, 'error');
+        }
     }
 
     // === TRANSFERENCIAS ===

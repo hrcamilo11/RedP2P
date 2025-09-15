@@ -63,6 +63,17 @@ class CentralServerAPI:
         @self.app.middleware("http")
         async def rate_limit_middleware_wrapper(request: Request, call_next):
             return await rate_limit_middleware(request, call_next)
+
+        # Forzar no caché para recursos estáticos y API para evitar inconsistencias
+        @self.app.middleware("http")
+        async def no_cache_static_middleware(request: Request, call_next):
+            response = await call_next(request)
+            path = str(request.url.path)
+            if path.startswith("/static/") or path.startswith("/api/"):
+                response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+            return response
         
         # Servir archivos estáticos
         self.app.mount("/static", StaticFiles(directory="static"), name="static")

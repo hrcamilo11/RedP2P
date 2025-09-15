@@ -157,25 +157,45 @@ class RESTAPI:
         
         @self.app.delete("/api/files/{file_hash}")
         async def delete_file(file_hash: str):
-            """Elimina un archivo del peer"""
+            """Elimina un archivo del peer por hash: borra del disco y del índice"""
             try:
-                # Buscar el archivo en el directorio compartido
+                # 1) Buscar en el índice para obtener path y validar existencia
+                file_info = await self.file_indexer.get_file_by_hash(file_hash)
+                if not file_info:
+                    # Re-escanear el directorio para refrescar índice y reintentar
+                    await self.file_indexer.scan_directory()
+                    file_info = await self.file_indexer.get_file_by_hash(file_hash)
+                    if not file_info:
+                        raise HTTPException(status_code=404, detail="Archivo no encontrado en el índice")
+
+                file_path = file_info.path
+
+                # 2) Verificar que apunta dentro del directorio compartido por seguridad
                 import os
-                import glob
-                
-                files = glob.glob(os.path.join(self.file_transfer.shared_directory, "*"))
-                for file_path in files:
-                    if os.path.isfile(file_path):
-                        # Calcular hash del archivo
-                        import hashlib
-                        with open(file_path, 'rb') as f:
-                            file_hash_calculated = hashlib.sha256(f.read()).hexdigest()
-                        
-                        if file_hash_calculated == file_hash:
-                            os.remove(file_path)
-                            return {"success": True, "message": "Archivo eliminado correctamente"}
-                
-                raise HTTPException(status_code=404, detail="Archivo no encontrado")
+                shared_dir = os.path.abspath(self.file_transfer.shared_directory)
+                abs_path = os.path.abspath(file_path)
+                if not abs_path.startswith(shared_dir + os.sep):
+                    raise HTTPException(status_code=400, detail="Ruta de archivo inválida")
+
+                # 3) Borrar del disco si existe
+                if os.path.exists(abs_path):
+                    try:
+                        os.remove(abs_path)
+                    except Exception as e:
+                        raise HTTPException(status_code=500, detail=f"No se pudo eliminar del disco: {e}")
+
+                # 4) Remover del índice en memoria
+                await self.file_indexer.remove_file(file_hash)
+
+                # 5) Respuesta
+                return {
+                    "success": True,
+                    "message": "Archivo eliminado correctamente",
+                    "file_hash": file_hash,
+                    "filename": file_info.filename
+                }
+            except HTTPException:
+                raise
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
         
@@ -199,6 +219,27 @@ class RESTAPI:
                 # Escanear directorio local
                 files = await self.file_indexer.scan_directory()
                 return {"files": [file.dict() for file in files]}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/cache/clear")
+        async def clear_cache_and_rebuild():
+            """Limpia el índice en memoria y reconstruye desde disco"""
+            try:
+                # Reinicializar estructura del índice
+                # Vaciar índice en memoria de forma segura
+                await self.file_indexer._lock.acquire()
+                try:
+                    self.file_indexer.file_index.clear()
+                finally:
+                    self.file_indexer._lock.release()
+
+                # Re-escanear para reconstruir
+                files = await self.file_indexer.scan_directory()
+                return {
+                    "success": True,
+                    "reindexed": len(files)
+                }
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
         
