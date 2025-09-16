@@ -116,7 +116,7 @@ function Open-Browser {
 Write-Header "🚀 DESPLIEGUE COMPLETO DE $ProjectName"
 
 # Verificar prerrequisitos
-Write-Step 1 8 "Verificando prerrequisitos..."
+Write-Step 1 9 "Verificando prerrequisitos..."
 
 $prerequisites = @{
     "Docker" = Test-Command "docker"
@@ -141,7 +141,7 @@ if ($missingPrereqs.Count -gt 0) {
 
 # Limpiar instalación anterior
 if (-not $SkipCleanup) {
-    Write-Step 2 8 "Limpiando instalación anterior..."
+    Write-Step 2 9 "Limpiando instalación anterior..."
     
     Write-ColorOutput "Deteniendo contenedores existentes..." $Colors.Info "🛑 "
     docker-compose down --remove-orphans 2>$null
@@ -158,12 +158,12 @@ if (-not $SkipCleanup) {
 }
 
 # Configurar red Docker (manejada automáticamente por Docker Compose)
-Write-Step 3 8 "Configurando red Docker..."
+Write-Step 3 9 "Configurando red Docker..."
 
 Write-ColorOutput "La red '$NetworkName' será creada automáticamente por Docker Compose" $Colors.Info "ℹ️ "
 
 # Crear directorios necesarios
-Write-Step 4 8 "Creando estructura de directorios..."
+Write-Step 4 9 "Creando estructura de directorios..."
 
 $directories = @(
     "data/central-server",
@@ -184,7 +184,7 @@ foreach ($dir in $directories) {
 
 # Construir imágenes
 if (-not $SkipBuild) {
-    Write-Step 5 8 "Construyendo imágenes Docker..."
+    Write-Step 5 9 "Construyendo imágenes Docker..."
     
     Write-ColorOutput "Construyendo imagen del servidor central..." $Colors.Info "🔨 "
     docker-compose build central-server
@@ -205,8 +205,32 @@ if (-not $SkipBuild) {
     Write-ColorOutput "Saltando construcción (--SkipBuild especificado)" $Colors.Warning "⚠️ "
 }
 
+# Recrear base de datos
+Write-Step 6 9 "Recreando base de datos..."
+
+# Ejecutar dentro del contenedor para usar dependencias (SQLAlchemy)
+$dbUrl = "sqlite:///./data/central_server.db"
+
+Write-ColorOutput "Ejecutando creación de tablas dentro del contenedor..." $Colors.Info "🗄️ "
+$args = @(
+    "run",
+    "--rm",
+    "-e", "DATABASE_URL=$dbUrl",
+    "central-server",
+    "python", "/app/init_db.py"
+)
+
+$proc = Start-Process -FilePath "docker-compose" -ArgumentList $args -NoNewWindow -PassThru -Wait
+
+if ($proc.ExitCode -ne 0) {
+    Write-ColorOutput "Error recreando base de datos (docker-compose run)" $Colors.Error "❌ "
+    exit 1
+}
+
+Write-ColorOutput "Base de datos recreada correctamente" $Colors.Success "✅ "
+
 # Iniciar servicios
-Write-Step 6 8 "Iniciando servicios..."
+Write-Step 7 9 "Iniciando servicios..."
 
 Write-ColorOutput "Iniciando servidor central..." $Colors.Info "🚀 "
 docker-compose up -d central-server
@@ -235,7 +259,7 @@ Write-ColorOutput "Esperando que los peers se registren..." $Colors.Info "⏳ "
 Start-Sleep -Seconds 10
 
 # Verificar estado de los servicios
-Write-Step 7 8 "Verificando estado de los servicios..."
+Write-Step 8 9 "Verificando estado de los servicios..."
 
 $services = @(
     @{Name="Servidor Central"; Container="p2p-central-server"; Port=8000},
@@ -264,7 +288,7 @@ if (-not $allServicesRunning) {
 
 # Ejecutar pruebas
 if (-not $SkipTests) {
-    Write-Step 8 8 "Ejecutando pruebas del sistema..."
+    Write-Step 9 9 "Ejecutando pruebas del sistema..."
     
     $testScript = Join-Path $PSScriptRoot "scripts\test_web_interface.ps1"
     if (Test-Path $testScript) {

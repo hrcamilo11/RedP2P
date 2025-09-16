@@ -162,7 +162,7 @@ open_browser() {
 print_header "🚀 DESPLIEGUE COMPLETO DE $PROJECT_NAME"
 
 # Verificar prerrequisitos
-print_step 1 8 "Verificando prerrequisitos..."
+print_step 1 9 "Verificando prerrequisitos..."
 
 if test_command "docker"; then
     print_color $GREEN "Docker está instalado" "✅ "
@@ -180,7 +180,7 @@ fi
 
 # Limpiar instalación anterior
 if [ "$SKIP_CLEANUP" = false ]; then
-    print_step 2 8 "Limpiando instalación anterior..."
+    print_step 2 9 "Limpiando instalación anterior..."
     
     print_color $CYAN "Deteniendo contenedores existentes..." "🛑 "
     docker-compose down --remove-orphans 2>/dev/null
@@ -197,7 +197,7 @@ else
 fi
 
 # Crear red Docker
-print_step 3 8 "Configurando red Docker..."
+print_step 3 9 "Configurando red Docker..."
 
 if docker network ls --format "{{.Name}}" | grep -q "^$NETWORK_NAME$"; then
     print_color $CYAN "Red '$NETWORK_NAME' ya existe" "ℹ️ "
@@ -212,7 +212,7 @@ else
 fi
 
 # Crear directorios necesarios
-print_step 4 8 "Creando estructura de directorios..."
+print_step 4 9 "Creando estructura de directorios..."
 
 directories=(
     "data/central-server"
@@ -233,7 +233,7 @@ done
 
 # Construir imágenes
 if [ "$SKIP_BUILD" = false ]; then
-    print_step 5 8 "Construyendo imágenes Docker..."
+    print_step 5 9 "Construyendo imágenes Docker..."
     
     print_color $CYAN "Construyendo imagen del servidor central..." "🔨 "
     if ! docker-compose build central-server; then
@@ -252,8 +252,20 @@ else
     print_color $YELLOW "Saltando construcción (--skip-build especificado)" "⚠️ "
 fi
 
+# Recrear base de datos
+print_step 6 9 "Recreando base de datos..."
+
+# Ejecutar dentro del contenedor para usar dependencias (SQLAlchemy)
+DB_URL="sqlite:////app/data/central_server.db"
+print_color $CYAN "Ejecutando creación de tablas dentro del contenedor..." "🗄️ "
+if ! docker-compose run --rm -e DATABASE_URL="$DB_URL" central-server python /app/init_db.py; then
+    print_color $RED "Error recreando base de datos (docker-compose run)" "❌ "
+    exit 1
+fi
+print_color $GREEN "Base de datos recreada correctamente" "✅ "
+
 # Iniciar servicios
-print_step 6 8 "Iniciando servicios..."
+print_step 7 9 "Iniciando servicios..."
 
 print_color $CYAN "Iniciando servidor central..." "🚀 "
 if ! docker-compose up -d central-server; then
@@ -280,7 +292,7 @@ print_color $CYAN "Esperando que los peers se registren..." "⏳ "
 sleep 10
 
 # Verificar estado de los servicios
-print_step 7 8 "Verificando estado de los servicios..."
+print_step 8 9 "Verificando estado de los servicios..."
 
 services=(
     "p2p-central-server:8000:Servidor Central"
@@ -311,7 +323,7 @@ fi
 
 # Ejecutar pruebas
 if [ "$SKIP_TESTS" = false ]; then
-    print_step 8 8 "Ejecutando pruebas del sistema..."
+    print_step 9 9 "Ejecutando pruebas del sistema..."
     
     test_script="scripts/test_web_interface.py"
     if [ -f "$test_script" ]; then

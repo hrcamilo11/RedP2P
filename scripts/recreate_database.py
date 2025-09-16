@@ -6,6 +6,8 @@ Script para recrear la base de datos con los nuevos constraints
 import os
 import sys
 import sqlite3
+import shutil
+from datetime import datetime
 
 def recreate_database():
     """Recrea la base de datos con los nuevos constraints"""
@@ -17,13 +19,22 @@ def recreate_database():
     
     # Backup de la base de datos existente
     if os.path.exists(db_path):
-        backup_path = f"{db_path}.backup"
+        base_backup_path = f"{db_path}.backup"
+        backup_path = base_backup_path
+        if os.path.exists(base_backup_path):
+            ts = datetime.now().strftime("%Y%m%d%H%M%S")
+            backup_path = f"{db_path}.{ts}.backup"
         print(f"📦 Creando backup: {backup_path}")
-        os.rename(db_path, backup_path)
+        # Usamos os.replace si el destino no existe; de lo contrario generamos nombre único arriba
+        os.replace(db_path, backup_path)
     
     # Crear directorio si no existe
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     
+    # Configurar URL de base de datos para que los modelos creen en la ruta esperada
+    # Formato sqlite: tres barras para ruta relativa desde el cwd
+    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
+
     # Crear nueva base de datos
     print("🆕 Creando nueva base de datos...")
     
