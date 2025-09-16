@@ -144,6 +144,13 @@ class RESTAPI:
                 from models.file_info import FileInfo
                 file_info = FileInfo.from_file(file_path, self.peer_id)
                 await self.file_indexer.add_file(file_info)
+
+                # Sincronizar con servidor central para reflejar la nueva subida
+                try:
+                    files = await self.file_indexer.get_all_files()
+                    await self.central_client.sync_files_with_central(files)
+                except Exception:
+                    pass
                 
                 return {
                     "success": True,
@@ -187,7 +194,14 @@ class RESTAPI:
                 # 4) Remover del índice en memoria
                 await self.file_indexer.remove_file(file_hash)
 
-                # 5) Respuesta
+                # 5) Sincronizar con servidor central para reflejar borrado
+                try:
+                    files = await self.file_indexer.get_all_files()
+                    await self.central_client.sync_files_with_central(files)
+                except Exception:
+                    pass
+
+                # 6) Respuesta
                 return {
                     "success": True,
                     "message": "Archivo eliminado correctamente",

@@ -82,6 +82,12 @@ class PeerNode:
                 self.pclient,
                 self.central_client
             )
+
+            # Inyectar central_client en file_transfer (circular dependency resuelta post-creación)
+            try:
+                self.file_transfer.set_central_client(self.central_client)
+            except Exception:
+                pass
             
             self.grpc_server = GRPCServer(
                 self.config.peer_id,

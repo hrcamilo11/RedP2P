@@ -26,6 +26,8 @@ cd RedP2P
 # 3. ¡Listo! La interfaz se abre automáticamente
 ```
 
+Nota: El despliegue recrea automáticamente la base de datos del servidor central antes de iniciar los servicios. La base queda en `data/central-server/central_server.db`.
+
 ## 🎯 Primeros Pasos
 
 ### 1. Explorar el Dashboard

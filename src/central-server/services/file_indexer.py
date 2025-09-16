@@ -101,17 +101,12 @@ class CentralFileIndexer:
                                 continue
                         
                         # Marcar como no disponibles los archivos que no están en el directorio local
-                        # pero NO eliminar archivos subidos (que tienen source='upload')
+                        # Incluye también archivos subidos (source='upload') si ya no existen localmente
                         for existing_file in existing_files:
                             if existing_file.file_hash not in local_file_hashes:
-                                # Solo marcar como no disponible si no es un archivo subido
-                                # Los archivos subidos se mantienen disponibles
-                                if existing_file.source != 'upload':
-                                    existing_file.is_available = False
-                                    existing_file.updated_at = datetime.utcnow()
-                                    logger.debug(f"Archivo {existing_file.filename} marcado como no disponible (no en directorio local)")
-                                else:
-                                    logger.debug(f"Archivo {existing_file.filename} es un archivo subido, se mantiene disponible")
+                                existing_file.is_available = False
+                                existing_file.updated_at = datetime.utcnow()
+                                logger.debug(f"Archivo {existing_file.filename} marcado como no disponible (no en directorio local)")
                         
                         db.commit()
                         logger.info(f"Indexados {indexed_count} archivos del peer {peer_id}")
@@ -267,7 +262,10 @@ class CentralFileIndexer:
             offset = (page - 1) * limit
             
             # Obtener archivos con paginación
-            files = db.query(File).filter(File.peer_id == peer_id).offset(offset).limit(limit).all()
+            files = db.query(File).filter(
+                File.peer_id == peer_id,
+                File.is_available == True
+            ).offset(offset).limit(limit).all()
             file_infos = []
             
             for file in files:

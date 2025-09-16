@@ -83,18 +83,23 @@ El script realiza los siguientes pasos:
 - 🔨 Construir imagen del servidor central
 - 🔨 Construir imágenes de nodos peer
 
-### 5. Inicio de Servicios
+### 5. Recreación de Base de Datos
+- 🗄️ Ejecución de inicialización dentro del contenedor `central-server`
+- 🧩 Se usa `DATABASE_URL=sqlite:///./data/central_server.db`
+- 💾 La base se almacena en el host en `data/central-server/central_server.db`
+
+### 6. Inicio de Servicios
 - 🚀 Iniciar servidor central
 - ⏳ Esperar disponibilidad del servidor
 - 🚀 Iniciar nodos peer
 - ⏳ Esperar registro de peers
 
-### 6. Verificación
+### 7. Verificación
 - ✅ Verificar estado de todos los servicios
 - 🧪 Ejecutar pruebas automatizadas
 - 📊 Mostrar información del sistema
 
-### 7. Apertura de Interfaz
+### 8. Apertura de Interfaz
 - 🌐 Abrir navegador automáticamente
 - 📱 Mostrar URLs de acceso
 

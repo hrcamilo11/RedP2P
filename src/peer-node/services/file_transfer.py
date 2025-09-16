@@ -2,19 +2,24 @@ import asyncio
 import aiohttp
 import aiofiles
 import os
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, Dict
 from models.file_info import FileInfo, DownloadRequest, DownloadResponse, UploadRequest, UploadResponse
 from services.file_indexer import FileIndexer
 
 class FileTransfer:
     """Servicio de transferencia de archivos entre peers"""
     
-    def __init__(self, file_indexer: FileIndexer, shared_directory: str, peer_id: str):
+    def __init__(self, file_indexer: FileIndexer, shared_directory: str, peer_id: str, central_client: Optional[object] = None):
         self.file_indexer = file_indexer
         self.shared_directory = shared_directory
         self.peer_id = peer_id
         self.active_transfers: Dict[str, dict] = {}
         self._session: Optional[aiohttp.ClientSession] = None
+        self.central_client = central_client
+
+    def set_central_client(self, central_client: object) -> None:
+        """Inyecta el cliente del servidor central después de la construcción."""
+        self.central_client = central_client
     
     async def initialize(self):
         """Inicializa el cliente HTTP"""
@@ -61,6 +66,15 @@ class FileTransfer:
                     # Indexar el nuevo archivo
                     file_info = FileInfo.from_file(file_path, self.peer_id)
                     await self.file_indexer.add_file(file_info)
+
+                    # Sincronizar con servidor central (mejora: reflectar descargas de inmediato)
+                    try:
+                        if self.central_client:
+                            files = await self.file_indexer.get_all_files()
+                            await self.central_client.sync_files_with_central(files)
+                    except Exception:
+                        # No bloquear por errores de sincronización
+                        pass
                     
                     return DownloadResponse(
                         success=True,
@@ -109,6 +123,15 @@ class FileTransfer:
             # Indexar el archivo
             file_info = FileInfo.from_file(file_path, self.peer_id)
             await self.file_indexer.add_file(file_info)
+
+            # Sincronizar con servidor central (mejora: reflectar subidas de inmediato)
+            try:
+                if self.central_client:
+                    files = await self.file_indexer.get_all_files()
+                    await self.central_client.sync_files_with_central(files)
+            except Exception:
+                # No bloquear por errores de sincronización
+                pass
             
             return UploadResponse(
                 success=True,

@@ -11,27 +11,32 @@ RedP2P/
 │   │   ├── api/                  # API REST
 │   │   ├── models/               # Modelos de datos
 │   │   ├── services/             # Servicios del servidor
-│   │   └── static/               # Interfaz web
+│   │   ├── static/               # Interfaz web
+│   │   └── init_db.py            # Inicialización de base de datos
 │   └── peer-node/                # Nodo peer
 │       ├── api/                  # API REST y gRPC
 │       ├── models/               # Modelos de datos
-│       ├── services/             # Servicios del peer
-│       └── utils/                # Utilidades
+│       └── requirements.txt      # Dependencias del peer
 ├── config/                       # Configuraciones
-│   ├── peer1.json               # Configuración peer 1
-│   ├── peer2.json               # Configuración peer 2
-│   └── peer3.json               # Configuración peer 3
-├── data/                        # Datos persistentes
-│   ├── central-server/          # Base de datos del servidor
-│   └── shared-files/            # Archivos compartidos
-│       ├── peer1/               # Archivos del peer 1
-│       ├── peer2/               # Archivos del peer 2
-│       └── peer3/               # Archivos del peer 3
-├── scripts/                     # Scripts de automatización
-├── docs/                        # Documentación
-├── tests/                       # Pruebas
-├── docker-compose.yml           # Orquestación de contenedores
-└── README.md                    # Este archivo
+│   ├── peer1.json                # Configuración peer 1
+│   ├── peer2.json                # Configuración peer 2
+│   └── peer3.json                # Configuración peer 3
+├── data/                         # Datos persistentes
+│   ├── central-server/           # Base de datos del servidor (host)
+│   │   ├── central_server.db     # Archivo SQLite
+│   │   └── central_server.db.backup
+│   └── shared-files/             # Archivos compartidos
+│       ├── peer1/
+│       ├── peer2/
+│       └── peer3/
+├── scripts/                      # Scripts de automatización
+│   ├── recreate_database.py      # Recreación de la base de datos (host)
+│   └── ...
+├── docker-compose.yml            # Orquestación de contenedores
+├── deploy.ps1 / deploy.sh        # Despliegue automático
+├── QUICK_START.md                # Guía rápida
+├── DEPLOY.md                     # Guía de despliegue
+└── README.md                     # Este archivo
 ```
 
 ## 🚀 Inicio Rápido
@@ -74,6 +79,8 @@ docker-compose up -d --build
 
 #### 3. Acceder a la interfaz
 Abrir http://localhost:8000 en el navegador
+
+Nota: Durante el despliegue se recrea la base de datos del servidor central antes de levantar los servicios. La base de datos de host queda en `data/central-server/central_server.db` (mapeada al contenedor como `/app/data/central_server.db`).
 
 ### 🎯 Interfaz Web Incluye
 - **Dashboard**: Estadísticas en tiempo real del sistema
@@ -149,9 +156,14 @@ Abrir http://localhost:8000 en el navegador
 - `scripts/cleanup.ps1` - Limpiar contenedores
 
 ### Pruebas
-- `scripts/test_system.ps1` - Probar sistema completo
-- `scripts/test_web_interface.ps1` - Probar interfaz web
+- `scripts/test_web_interface.ps1` - Probar interfaz web (PowerShell)
 - `scripts/test_web_interface.py` - Pruebas automatizadas Python
+
+Sugerencia Windows: si ves errores de Unicode en consola, ejecuta previamente:
+```powershell
+chcp 65001
+$env:PYTHONIOENCODING = "utf-8"
+```
 
 ## 🔍 Monitoreo
 
